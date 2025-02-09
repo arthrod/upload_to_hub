@@ -1,6 +1,8 @@
 .env
 __pycache__/
 **/__pycache__/
+processed_prompt11/
+log_prompt15/
 *.py[cod]
 *$py.class
 *.so
