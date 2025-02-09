@@ -1,10 +1,115 @@
-# Python-generated files
+.env
 __pycache__/
-*.py[oc]
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
 build/
+develop-eggs/
 dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
 wheels/
-*.egg-info
+*.egg-info/
+.installed.cfg
+*.egg
 
-# Virtual environments
+# Virtual Environment
+.env
 .venv
+.venv/*
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE - VSCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# IDE - PyCharm
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# Testing
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+htmlcov/
+
+# Logs and databases
+*.log
+*.sqlite
+*.db
+logs/
+*.logs
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Project specific
+*.env
+data/
+output/
+results/
+temp/
+tmp/
+downloads/
+uploads/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Documentation
+docs/_build/
+site/
+
+# Package specific
+*.pkl
+*.h5
+*.model
+*.weights
+
+.ruff_cache/*
+__pycache__/*
+.venv/*
+.*
+qodana*.*
+logs/
+venv/
+*.txt
+*.env
+db/*
+retrieved_attachments/*
+downloaded_attachments/*
+main*.txt
+__pycache__/*
+*.logs
+*.log
+old/*
+
