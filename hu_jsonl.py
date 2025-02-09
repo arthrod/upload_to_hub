@@ -53,17 +53,17 @@ def validate_jsonl_file(file: Path) -> tuple[bool, list[dict], list[int]]:
     return (len(error_lines) > 0), valid_data, error_lines
 
 
-def attempt_easy_fix(file: Path, valid_ list[dict]) -> bool:
+def attempt_easy_fix(file: Path, valid_: list[dict]) -> bool:
     """
     Attempt an easy fix on a JSONL file by rewriting it with only valid JSON lines.
     Returns True if the file was fixed (and is non-empty), otherwise False.
     """
-    if not valid_
+    if not valid_:
         logger.error(f'No valid data found in {file.name} after attempting fix.')
         return False
     try:
         with file.open('w', encoding='utf-8') as f:
-            for record in valid_
+            for record in valid_:
                 f.write(json.dumps(record) + '\n')
         logger.info(f'Easy fix applied to {file.name}.')
         return True
