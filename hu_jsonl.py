@@ -58,12 +58,12 @@ def attempt_easy_fix(file: Path, valid_ list[dict]) -> bool:
     Attempt an easy fix on a JSONL file by rewriting it with only valid JSON lines.
     Returns True if the file was fixed (and is non-empty), otherwise False.
     """
-    if not valid_: # fix: variable name `valid_` should be `valid_data`
+    if not valid_
         logger.error(f'No valid data found in {file.name} after attempting fix.')
         return False
     try:
         with file.open('w', encoding='utf-8') as f:
-            for record in valid_: # fix: variable name `valid_` should be `valid_data`
+            for record in valid_
                 f.write(json.dumps(record) + '\n')
         logger.info(f'Easy fix applied to {file.name}.')
         return True
