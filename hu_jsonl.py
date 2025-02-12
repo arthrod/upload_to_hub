@@ -50,20 +50,21 @@ def validate_jsonl_file(file: Path) -> tuple[bool, list[dict], list[int]]:
     except Exception as e:
         logger.error(f'Failed to read {file.name}: {e}')
         error_lines.append(-1)
+        raise RuntimeError('Failed to read file') from e
     return (len(error_lines) > 0), valid_data, error_lines
 
 
-def attempt_easy_fix(file: Path, valid_: list[dict]) -> bool:
+def attempt_easy_fix(file: Path, valid_data: list[dict]) -> bool:
     """
     Attempt an easy fix on a JSONL file by rewriting it with only valid JSON lines.
     Returns True if the file was fixed (and is non-empty), otherwise False.
     """
-    if not valid_:
+    if not valid_data:
         logger.error(f'No valid data found in {file.name} after attempting fix.')
         return False
     try:
         with file.open('w', encoding='utf-8') as f:
-            for record in valid_:
+            for record in valid_data:
                 f.write(json.dumps(record) + '\n')
         logger.info(f'Easy fix applied to {file.name}.')
         return True
@@ -148,9 +149,8 @@ def process_jsonl_files(
     uploaded_files_count = 0
     skipped_files_count = 0
 
-    typer.echo(f"Total JSONL files found: {total_files_count}")
-    typer.echo(f"Total size of JSONL files: {total_files_size / (1024 * 1024):.2f} MB")
-
+    typer.echo(f'Total JSONL files found: {total_files_count}')
+    typer.echo(f'Total size of JSONL files: {total_files_size / (1024 * 1024):.2f} MB')
 
     valid_files = []
     for file in files:
@@ -184,19 +184,43 @@ def process_jsonl_files(
         all_columns = set()
         for file in valid_files:
             _, ds = load_and_process_dataset(file, token, flatten)
+            logger.info(f'Loaded dataset from {file.name} with {len(ds)} rows and columns: {ds.column_names}')
+            if len(ds) == 0:
+                logger.warning(f'Dataset from {file.name} is empty!')
+                continue
             all_columns.update(ds.column_names)
             datasets_list.append(ds)
 
+        if not datasets_list:
+            typer.echo(typer.style('No non-empty datasets to concatenate!', fg='red', bold=True))
+            raise typer.Exit(1)
+
+        logger.info(f'Total columns across all datasets: {all_columns}')
+
         # Add missing columns with None values to each dataset
-        for i, ds in enumerate(datasets_list):
-            missing_columns = all_columns - set(ds.column_names)
+        for i, dataset in enumerate(datasets_list):
+            missing_columns = all_columns - set(dataset.column_names)
             if missing_columns:
+                logger.info(f'Adding missing columns to dataset {i}: {missing_columns}')
+                updated_dataset = dataset
                 for col in missing_columns:
-                    ds = ds.add_column(col, [None] * len(ds))
-                datasets_list[i] = ds
+                    updated_dataset = updated_dataset.add_column(col, [None] * len(dataset))
+                datasets_list[i] = updated_dataset
+                logger.info(f'Dataset {i} now has columns: {updated_dataset.column_names}')
+
+        # Verify all datasets have the same columns before concatenation
+        for i, ds in enumerate(datasets_list):
+            if set(ds.column_names) != all_columns:
+                logger.error(f'Dataset {i} has mismatched columns: {set(ds.column_names)} vs {all_columns}')
+                raise ValueError(f'Dataset {i} has mismatched columns')
 
         # Concatenate all datasets
         combined_dataset = concatenate_datasets(datasets_list)
+        logger.info(f'Combined dataset has {len(combined_dataset)} rows and columns: {combined_dataset.column_names}')
+
+        if len(combined_dataset) == 0:
+            typer.echo(typer.style('Warning: Combined dataset is empty!', fg='yellow', bold=True))
+            raise typer.Exit(1)
 
         # Set up repository name and handle existing repos
         if repo_name is None:
@@ -205,11 +229,12 @@ def process_jsonl_files(
 
         if skip_existing and repo_exists(repo_id, token):
             typer.echo(f"Repository '{repo_id}' already exists. Skipping upload.")
-            skipped_files_count = total_files_count # In consolidate mode, skipping means skipping all files
+            skipped_files_count = total_files_count  # In consolidate mode, skipping means skipping all files
         else:
             if repo_exists(repo_id, token):
                 choice = typer.prompt(
-                    f"Repository '{repo_id}' already exists. Choose: [a]ppend (default), [o]verwrite, [p]roceed without uploading", default='a'
+                    f"Repository '{repo_id}' already exists. Choose: [a]ppend (default), [o]verwrite, [p]roceed without uploading",
+                    default='a',
                 )
                 if choice.lower() == 'a':
                     counter = 1
@@ -217,16 +242,16 @@ def process_jsonl_files(
                         counter += 1
                     repo_id = f'{repo_id}_{counter}'
                 elif choice.lower() == 'p':
-                    create_pr = True # Proceed without upload effectively means create PR only if requested? No, it means skip upload.
-                    skipped_files_count = total_files_count # In consolidate mode, skipping means skipping all files
+                    create_pr = True  # Proceed without upload effectively means create PR only if requested? No, it means skip upload.
+                    skipped_files_count = total_files_count  # In consolidate mode, skipping means skipping all files
                 elif choice.lower() != 'o':
                     raise typer.Exit(1)
-                else: # overwrite
-                    pass # proceed to push_to_hub, overwriting
+                else:  # overwrite
+                    pass  # proceed to push_to_hub, overwriting
 
-            if skipped_files_count == 0: # Only push if not skipped
+            if skipped_files_count == 0:  # Only push if not skipped
                 combined_dataset.push_to_hub(repo_id, token=token, private=private, create_pr=create_pr)
-                uploaded_files_count = total_files_count # In consolidate mode, uploading means uploading all files
+                uploaded_files_count = total_files_count  # In consolidate mode, uploading means uploading all files
 
     else:
         # Process each file individually
@@ -239,41 +264,42 @@ def process_jsonl_files(
             if skip_existing and repo_exists(local_repo_id, token):
                 typer.echo(f"Repository '{local_repo_id}' already exists. Skipping {file.name}.")
                 skipped_files_count += 1
-                continue # Skip to the next file
-            else:
-                if repo_exists(local_repo_id, token):
-                    choice = typer.prompt(
-                        f"Repository '{local_repo_id}' exists. Choose: [a]ppend (default), [o]verwrite, [p]roceed without uploading this file",
-                        default='a',
-                    )
-                    if choice.lower() == 'a':
-                        counter = 1
-                        while repo_exists(f'{local_repo_id}_{counter}', token):
-                            counter += 1
-                        local_repo_id = f'{local_repo_id}_{counter}'
-                    elif choice.lower() == 'p':
-                        create_pr = True # Proceed without upload effectively means create PR only if requested? No, it means skip upload for this file.
-                        skipped_files_count += 1
-                        continue # Skip to the next file
-                    elif choice.lower() != 'o':
-                        continue # Skip to the next file
-                    else: # overwrite
-                        pass # proceed to push_to_hub, overwriting
+                continue  # Skip to the next file
+            if repo_exists(local_repo_id, token):
+                choice = typer.prompt(
+                    f"Repository '{local_repo_id}' exists. Choose: [a]ppend (default), [o]verwrite, [p]roceed without uploading this file",
+                    default='a',
+                )
+                if choice.lower() == 'a':
+                    counter = 1
+                    while repo_exists(f'{local_repo_id}_{counter}', token):
+                        counter += 1
+                    local_repo_id = f'{local_repo_id}_{counter}'
+                elif choice.lower() == 'p':
+                    create_pr = True  # Proceed without upload effectively means create PR only if requested? No, it means skip upload for this file.
+                    skipped_files_count += 1
+                    continue  # Skip to the next file
+                elif choice.lower() != 'o':
+                    continue  # Skip to the next file
+                else:  # overwrite
+                    pass  # proceed to push_to_hub, overwriting
 
-                if skipped_files_count == 0 or choice.lower() != 'p': # Only push if not skipped in skip_existing mode or user didn't choose 'p'
-                    typer.echo(f'Uploading {file.name} to {local_repo_id}...')
-                    ds.push_to_hub(local_repo_id, token=token, private=private, create_pr=create_pr)
-                    uploaded_files_count += 1
+            if choice.lower() != 'p':
+                # Only push if user didn't choose 'p'
+                # skip_existing is already handled by continue
+                typer.echo(f'Uploading {file.name} to {local_repo_id}...')
+                ds.push_to_hub(local_repo_id, token=token, private=private, create_pr=create_pr)
+                uploaded_files_count += 1
 
     # Archive processed files
     archive_folder = f'archive_{repo_name}' if repo_name else 'archive_individual'
     create_archive_directory(directory, valid_files, archive_folder)
     typer.echo(typer.style('Upload complete and files archived.', fg='green', bold=True))
 
-    typer.echo("--- Statistics ---")
-    typer.echo(f"Total files processed: {total_files_count}")
-    typer.echo(f"Uploaded files: {uploaded_files_count}")
-    typer.echo(f"Skipped files: {skipped_files_count}")
+    typer.echo('--- Statistics ---')
+    typer.echo(f'Total files processed: {total_files_count}')
+    typer.echo(f'Uploaded files: {uploaded_files_count}')
+    typer.echo(f'Skipped files: {skipped_files_count}')
 
 
 @app.command()
