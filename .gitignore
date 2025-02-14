@@ -3,6 +3,8 @@ __pycache__/
 **/__pycache__/
 processed_prompt11/
 log_prompt15/
+log*/**
+processed*/**
 *.py[cod]
 *$py.class
 *.so
