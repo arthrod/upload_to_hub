@@ -1,5 +1,6 @@
 .env
 __pycache__/
+archive*/**
 **/__pycache__/
 processed_prompt11/
 log_prompt15/

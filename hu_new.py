@@ -249,9 +249,33 @@ def process_jsonl_files(
                 else:  # overwrite
                     pass  # proceed to push_to_hub, overwriting
 
+<<<<<<< HEAD
             if skipped_files_count == 0:  # Only push if not skipped
                 combined_dataset.push_to_hub(repo_id, token=token, private=private, create_pr=create_pr)
                 uploaded_files_count = total_files_count  # In consolidate mode, uploading means uploading all files
+=======
+            ds = load_dataset('json', data_files=str(file), token=token)['train']
+            original_columns = set(ds.column_names)
+            if flatten:
+                ds = ds.flatten(max_depth=16)
+                flattened_columns = set(ds.column_names) - original_columns
+                typer.echo(
+                    typer.style(
+                        f'For file {file.name}, flattened columns added: {sorted(flattened_columns)}',
+                        fg='blue',
+                        bold=True,
+                    )
+                )
+            typer.echo(
+                typer.style(
+                    f'Processing and uploading {file.name} with columns: {sorted(ds.column_names)}...',
+                    fg='magenta',
+                    bold=True,
+                )
+            )
+            ds.push_to_hub(local_repo_id, token=token, private=private, create_pr=create_pr)
+        archive_folder = f'archive_{repo_name}' if repo_name is not None else 'archive_individual'
+>>>>>>> d7814a1 (final)
 
     else:
         # Process each file individually
